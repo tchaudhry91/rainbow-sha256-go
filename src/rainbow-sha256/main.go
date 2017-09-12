@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"github.com/go-redis/redis"
 	log "github.com/sirupsen/logrus"
 	"net/http"
@@ -14,6 +15,17 @@ var (
 	redis_host      string
 	redis_connector *redis.Client
 )
+
+// Create JSON Request type
+type JSONRequest struct {
+	Str string `json:"str"`
+}
+
+// Create JSON Response type
+type JSONResponse struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
 
 // Initialize Redis Connector
 func init_redis() {
@@ -60,7 +72,7 @@ func lookupStore(key string) string {
 	val, err := redis_connector.Get(key).Result()
 	if err != nil {
 		if err == redis.Nil {
-			log.Infof("Key:%s not found in store")
+			log.Infof("Key:%s not found in store", key)
 			return ""
 		}
 	}
@@ -70,6 +82,7 @@ func lookupStore(key string) string {
 // Handler for /hash
 // Returns hash for a given string and stores the reverse key value in a key value store
 func hashHandler(writer http.ResponseWriter, req *http.Request) {
+	writer.Header().Set("Content-Type", "application/json")
 	queryValues := req.URL.Query()
 	hashString := queryValues.Get("str")
 	hashArray := sha256.Sum256([]byte(hashString))
@@ -77,19 +90,36 @@ func hashHandler(writer http.ResponseWriter, req *http.Request) {
 	log.Infof("Hashed '%s':'%x'\n", hashString, response_hex)
 	response := hex.EncodeToString(response_hex)
 	addToStore(response, hashString)
-	writer.Write([]byte(response))
+	responseGroup := JSONResponse{
+		Key:   hashString,
+		Value: response,
+	}
+	responseJson, err := json.Marshal(responseGroup)
+	if err != nil {
+		log.Error("Error Encoding JSON:", err)
+	}
+	writer.Write([]byte(responseJson))
 }
 
 // Handler for /reverse_hash
 // Looks up key value store for already hashed values for a reverse lookup
 func reverseHashHandler(writer http.ResponseWriter, req *http.Request) {
+	writer.Header().Set("Content-Type", "application/json")
 	queryValues := req.URL.Query()
 	reverseHashString := queryValues.Get("str")
 	response := lookupStore(reverseHashString)
 	if response == "" {
-		response = "String Not Found!"
+		http.NotFound(writer, req)
 	}
-	writer.Write([]byte(response))
+	responseGroup := JSONResponse{
+		Key:   reverseHashString,
+		Value: response,
+	}
+	responseJSON, err := json.Marshal(responseGroup)
+	if err != nil {
+		log.Error("Error Encoding JSON:", err)
+	}
+	writer.Write([]byte(responseJSON))
 }
 
 func startServer() {
