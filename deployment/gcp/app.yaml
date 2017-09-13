@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: rainbow-hasher-service
+spec:
+  selector:
+    app: rainbow-hasher-go
+  type: LoadBalancer
+  ports:
+    - protocol: TCP
+      port: 9999
+      targetPort: 9999
+---
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: rainbow-hasher-go-deployment
+spec:
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: rainbow-hasher-go
+    spec:
+      containers:
+        - name: rainbow-hasher-go
+          image: tchaudhry/rainbow-hasher-go:master
+          ports:
+            - containerPort: 9999
+          env:
+            - name: REDIS_HOST
+              value: rainbow-hasher-redis-service

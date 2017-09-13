@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: rainbow-hasher-redis-service
+spec:
+  selector:
+    app: rainbow-hasher-redis
+  ports:
+    - protocol: TCP
+      port: 6379
+      targetPort: 6379
+---
+apiVersion: apps/v1beta1
+kind: StatefulSet
+metadata:
+  name: rainbow-hasher-redis
+spec:
+  serviceName: "rainbow-hasher-redis-service"
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: rainbow-hasher-redis
+    spec:
+      terminationGracePeriodSeconds: 10
+      containers:
+        - name: redis
+          image: redis:latest
+          ports:
+            - containerPort: 6379
+              name: redis
+          volumeMounts:
+            - name: redis-data
+              mountPath: /data
+  volumeClaimTemplates:
+    - metadata:
+        name: redis-data
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        resources:
+          requests:
+            storage: 10Gi
